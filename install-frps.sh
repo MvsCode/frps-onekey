@@ -4,9 +4,9 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 export FRPS_VER="$LATEST_RELEASE"
 export FRPS_VER_32BIT="$LATEST_RELEASE"
-export FRPS_INIT="https://raw.githubusercontent.com/MvsCode/frps-onekey/master/frps.init"
+export FRPS_INIT="https://raw.githubusercontent.com/xiwangly2/frps-onekey/master/frps.init"
 export gitee_download_url="https://gitee.com/Mvscode/frps-onekey/releases/download"
-export github_download_url="https://github.com/fatedier/frp/releases/download"
+export github_download_url="https://github.com/fatedier/frp/releases/latest"
 export gitee_latest_version_api="https://gitee.com/api/v5/repos/MvsCode/frps-onekey/releases/latest"
 export github_latest_version_api="https://api.github.com/repos/fatedier/frp/releases/latest"
 #======================================================================
@@ -19,7 +19,7 @@ program_name="frps"
 version="20231028"
 str_program_dir="/usr/local/${program_name}"
 program_init="/etc/init.d/${program_name}"
-program_config_file="frps.ini"
+program_config_file="frps.toml"
 ver_file="/tmp/.frp_ver.sh"
 str_install_shell="https://raw.githubusercontent.com/Mvscode/frps-onekey/master/install-frps.sh"
 shell_update(){
@@ -96,6 +96,24 @@ checkos(){
         OS=Ubuntu
     elif grep -Eqi "Fedora" /etc/issue || grep -Eq "Fedora" /etc/*-release; then
         OS=Fedora
+    elif grep -Eqi "Amazon Linux" /etc/issue || grep -Eq "Amazon Linux" /etc/*-release; then
+        OS=Amazon
+    elif grep -Eqi "OpenSUSE" /etc/issue || grep -Eq "OpenSUSE" /etc/*-release; then
+        OS=OpenSUSE
+    elif grep -Eqi "Alpine" /etc/issue || grep -Eq "Alpine" /etc/*-release; then
+        OS=Alpine
+    elif grep -Eqi "Arch Linux" /etc/issue || grep -Eq "Arch Linux" /etc/*-release; then
+        OS=Arch
+    elif grep -Eqi "Deepin" /etc/issue || grep -Eq "Deepin" /etc/*-release; then
+        OS=Deepin
+    elif grep -Eqi "Mint" /etc/issue || grep -Eq "Mint" /etc/*-release; then
+        OS=Mint
+    elif grep -Eqi "Kali" /etc/issue || grep -Eq "Kali" /etc/*-release; then
+        OS=Kali
+    elif grep -Eqi "OpenBSD" /etc/issue || grep -Eq "OpenBSD" /etc/*-release; then
+        OS=OpenBSD
+    elif grep -Eqi "OpenWrt" /etc/issue || grep -Eq "OpenWrt" /etc/*-release; then
+        OS=OpenWrt
     else
         echo "Not support OS, Please reinstall OS and retry!"
         exit 1
@@ -297,6 +315,14 @@ fun_input_bind_port(){
     [ -z "${serverport}" ] && serverport="${def_server_port}"
     fun_check_port "bind" "${serverport}"
 }
+fun_input_quic_bind_port(){
+    def_server_port="7443"
+    echo ""
+    echo -n -e "Please input ${program_name} ${COLOR_GREEN}bind_port${COLOR_END} [1-65535]( != bind_port!!!)"
+    read -e -p "(Default Server Port: ${def_server_port}):" serverport
+    [ -z "${serverport}" ] && serverport="${def_server_port}"
+    fun_check_port "bind" "${serverport}"
+}
 fun_input_dashboard_port(){
     def_dashboard_port="6443"
     echo ""
@@ -388,6 +414,10 @@ pre_install_clang(){
         fun_input_bind_port
         [ -n "${input_port}" ] && set_bind_port="${input_port}"
         echo -e "${program_name} bind_port: ${COLOR_YELOW}${set_bind_port}${COLOR_END}"
+        echo -e ""
+        fun_input_quic_bind_port
+        [ -n "${input_port}" ] && set_quic_bind_port="${input_port}"
+        echo -e "${program_name} quic_bind_port: ${COLOR_YELOW}${set_quic_bind_port}${COLOR_END}"
         echo -e ""
         fun_input_vhost_http_port
         [ -n "${input_port}" ] && set_vhost_http_port="${input_port}"
@@ -521,10 +551,34 @@ pre_install_clang(){
         echo -e "kcp support: ${COLOR_YELOW}${set_kcp}${COLOR_END}"
         echo -e ""
 
+        echo -e "Please select ${COLOR_GREEN}quic support${COLOR_END}"
+        echo    "1: enable (default)"
+        echo    "2: disable"
+        echo "-------------------------"  
+        read -e -p "Enter your choice (1, 2 or exit. default [1]): " str_quic
+        case "${str_quic}" in
+            1|[yY]|[yY][eE][sS]|[oO][nN]|[tT][rR][uU][eE]|[eE][nN][aA][bB][lL][eE])
+                set_quic="true"
+                ;;
+            0|2|[nN]|[nN][oO]|[oO][fF][fF]|[fF][aA][lL][sS][eE]|[dD][iI][sS][aA][bB][lL][eE])
+                set_quic="false"
+                ;;
+            [eE][xX][iI][tT])
+                exit 1
+                ;;
+            *)
+                set_quic="true"
+                ;;
+        esac
+        echo -e "quic support: ${COLOR_YELOW}${set_quic}${COLOR_END}"
+        echo -e ""
+
         echo "============== Check your input =============="
         echo -e "You Server IP      : ${COLOR_GREEN}${defIP}${COLOR_END}"
         echo -e "Bind port          : ${COLOR_GREEN}${set_bind_port}${COLOR_END}"
+        echo -e "Quic bind port     : ${COLOR_GREEN}${set_quic_bind_port}${COLOR_END}"
         echo -e "kcp support        : ${COLOR_GREEN}${set_kcp}${COLOR_END}"
+        echo -e "quic support       : ${COLOR_GREEN}${set_quic}${COLOR_END}"
         echo -e "vhost http port    : ${COLOR_GREEN}${set_vhost_http_port}${COLOR_END}"
         echo -e "vhost https port   : ${COLOR_GREEN}${set_vhost_https_port}${COLOR_END}"
         echo -e "Dashboard port     : ${COLOR_GREEN}${set_dashboard_port}${COLOR_END}"
@@ -545,6 +599,41 @@ pre_install_clang(){
         install_program_server_clang
     fi
 }
+
+# Function to generate common configuration
+generate_common_config() {
+cat <<-EOF
+# A literal address or host name for IPv6 must be enclosed
+# in square brackets, as in "[::1]:80", "[ipv6-host]:http" or "[ipv6-host%zone]:80"
+bindAddr = "0.0.0.0"
+bindPort = ${set_bind_port}
+# if you want to configure or reload frps by dashboard, dashboard_port must be set
+webServer.addr = "0.0.0.0"
+webServer.port = ${set_dashboard_port}
+# dashboard assets directory(only for debug mode)
+webServer.user = ${set_dashboard_user}
+webServer.password = ${set_dashboard_pwd}
+# assets_dir = ./static
+vhostHTTPPort = ${set_vhost_http_port}
+vhostHTTPSPort = ${set_vhost_https_port}
+# console or real logFile path like ./frps.log
+log.to = ${str_log_file}
+# debug, info, warn, error
+log.level = ${str_log_level}
+log.maxDays = ${set_log_max_days}
+# auth token
+auth.token = ${set_token}
+# It is convenient to use subdomain configure for http、https type when many people use one frps server together.
+subDomainHost = ${set_subdomain_host}
+# only allow frpc to bind ports you list, if you set nothing, there won't be any limit
+#allowPorts = 1-65535
+# pool_count in each proxy will change to max_pool_count if they exceed the maximum value
+transport.maxPoolCount = ${set_max_pool_count}
+# if tcp stream multiplexing is used, default is true
+tcpmuxPassthrough = ${set_tcp_mux}
+EOF
+}
+
 # ====== install server ======
 install_program_server_clang(){
     [ ! -d ${str_program_dir} ] && mkdir -p ${str_program_dir}
@@ -552,78 +641,34 @@ install_program_server_clang(){
     echo "${program_name} install path:$PWD"
 
     echo -n "config file for ${program_name} ..."
-# Config file
-if [[ "${set_kcp}" == "false" ]]; then
-cat > ${str_program_dir}/${program_config_file}<<-EOF
-# [common] is integral section
-[common]
-# A literal address or host name for IPv6 must be enclosed
-# in square brackets, as in "[::1]:80", "[ipv6-host]:http" or "[ipv6-host%zone]:80"
-bind_addr = 0.0.0.0
-bind_port = ${set_bind_port}
-# udp port used for kcp protocol, it can be same with 'bind_port'
-# if not set, kcp is disabled in frps
-#kcp_bind_port = ${set_bind_port}
-# if you want to configure or reload frps by dashboard, dashboard_port must be set
-dashboard_port = ${set_dashboard_port}
-# dashboard assets directory(only for debug mode)
-dashboard_user = ${set_dashboard_user}
-dashboard_pwd = ${set_dashboard_pwd}
-# assets_dir = ./static
-vhost_http_port = ${set_vhost_http_port}
-vhost_https_port = ${set_vhost_https_port}
-# console or real logFile path like ./frps.log
-log_file = ${str_log_file}
-# debug, info, warn, error
-log_level = ${str_log_level}
-log_max_days = ${set_log_max_days}
-# auth token
-token = ${set_token}
-# It is convenient to use subdomain configure for http、https type when many people use one frps server together.
-subdomain_host = ${set_subdomain_host}
-# only allow frpc to bind ports you list, if you set nothing, there won't be any limit
-#allow_ports = 1-65535
-# pool_count in each proxy will change to max_pool_count if they exceed the maximum value
-max_pool_count = ${set_max_pool_count}
-# if tcp stream multiplexing is used, default is true
-tcp_mux = ${set_tcp_mux}
+
+    # Generate configuration based on conditions
+    generate_common_config > "${str_program_dir}/${program_config_file}.tmp"
+
+    # Append specific configurations based on conditions
+    if [[ "${set_kcp}" == "false" ]]; then
+        if [[ "${set_quic}" == "true" ]]; then
+            cat <<-EOF >> "${str_program_dir}/${program_config_file}.tmp"
+# if not set, quic is disabled in frps
+quicBindPort = ${set_quic_bind_port}
 EOF
-else
-cat > ${str_program_dir}/${program_config_file}<<-EOF
-# [common] is integral section
-[common]
-# A literal address or host name for IPv6 must be enclosed
-# in square brackets, as in "[::1]:80", "[ipv6-host]:http" or "[ipv6-host%zone]:80"
-bind_addr = 0.0.0.0
-bind_port = ${set_bind_port}
-# udp port used for kcp protocol, it can be same with 'bind_port'
+        fi
+    else
+        cat <<-EOF >> "${str_program_dir}/${program_config_file}.tmp"
 # if not set, kcp is disabled in frps
-kcp_bind_port = ${set_bind_port}
-# if you want to configure or reload frps by dashboard, dashboard_port must be set
-dashboard_port = ${set_dashboard_port}
-# dashboard assets directory(only for debug mode)
-dashboard_user = ${set_dashboard_user}
-dashboard_pwd = ${set_dashboard_pwd}
-# assets_dir = ./static
-vhost_http_port = ${set_vhost_http_port}
-vhost_https_port = ${set_vhost_https_port}
-# console or real logFile path like ./frps.log
-log_file = ${str_log_file}
-# debug, info, warn, error
-log_level = ${str_log_level}
-log_max_days = ${set_log_max_days}
-# auth token
-token = ${set_token}
-# It is convenient to use subdomain configure for http、https type when many people use one frps server together.
-subdomain_host = ${set_subdomain_host}
-# only allow frpc to bind ports you list, if you set nothing, there won't be any limit
-#allow_ports = 1-65535
-# pool_count in each proxy will change to max_pool_count if they exceed the maximum value
-max_pool_count = ${set_max_pool_count}
-# if tcp stream multiplexing is used, default is true
-tcp_mux = ${set_tcp_mux}
+kcpBindPort = ${set_bind_port}
 EOF
-fi
+        if [[ "${set_quic}" == "true" ]]; then
+            cat <<-EOF >> "${str_program_dir}/${program_config_file}.tmp"
+# if not set, quic is disabled in frps
+quicBindPort = ${set_quic_bind_port}
+EOF
+        fi
+    fi
+    
+    # Move the temporary file to the final destination
+    mv "${str_program_dir}/${program_config_file}.tmp" "${str_program_dir}/${program_config_file}"
+
     echo " done"
 
     echo -n "download ${program_name} ..."
@@ -731,6 +776,7 @@ uninstall_program_server_clang(){
     exit 0
 }
 ############################### update ##################################
+# TODO: update toml file configuration
 update_config_clang(){
     if [ ! -r "${str_program_dir}/${program_config_file}" ]; then
         echo "config file ${str_program_dir}/${program_config_file} not found."
@@ -783,9 +829,37 @@ update_config_clang(){
                 echo "kcp support: ${set_kcp}"
                 def_kcp_bind_port=( $( __readINI ${str_program_dir}/${program_config_file} common bind_port ) )
                 if [[ "${set_kcp}" == "false" ]]; then
-                    sed -i "/^bind_port =.*/a\# udp port used for kcp protocol, it can be same with 'bind_port'\n# if not set, kcp is disabled in frps\n#kcp_bind_port = ${def_kcp_bind_port}\n" ${str_program_dir}/${program_config_file}
+                    sed -i "/^bindPort =.*/a\# udp port used for kcp protocol, it can be same with 'bindPort'\n# if not set, kcp is disabled in frps\n#kcpBindPort = ${def_kcp_bind_port}\n" ${str_program_dir}/${program_config_file}
                 else
-                    sed -i "/^bind_port =.*/a\# udp port used for kcp protocol, it can be same with 'bind_port'\n# if not set, kcp is disabled in frps\nkcp_bind_port = ${def_kcp_bind_port}\n" ${str_program_dir}/${program_config_file}
+                    sed -i "/^bindPort =.*/a\# udp port used for kcp protocol, it can be same with 'bindPort'\n# if not set, kcp is disabled in frps\nkcpBindPort = ${def_kcp_bind_port}\n" ${str_program_dir}/${program_config_file}
+                fi
+            fi
+            if [ -z "${search_quic_bind_port}" ];then 
+                echo -e "${COLOR_GREEN}Please select quic support${COLOR_END}"
+                echo "1: enable (default)"
+                echo "2: disable"
+                echo "-------------------------"  
+                read -e -p "Enter your choice (1, 2 or exit. default [1]): " str_quic
+                case "${str_quic}" in
+                    1|[yY]|[yY][eE][sS]|[oO][nN]|[tT][rR][uU][eE]|[eE][nN][aA][bB][lL][eE])
+                        set_quic="true"
+                        ;;
+                    0|2|[nN]|[nN][oO]|[oO][fF][fF]|[fF][aA][lL][sS][eE]|[dD][iI][sS][aA][bB][lL][eE])
+                        set_quic="false"
+                        ;;
+                    [eE][xX][iI][tT])
+                        exit 1
+                        ;;
+                    *)
+                        set_quic="true"
+                        ;;
+                esac
+                echo "quic support: ${set_quic}"
+                def_quic_bind_port=( $( __readINI ${str_program_dir}/${program_config_file} common bind_port ) )
+                if [[ "${set_quic}" == "false" ]]; then
+                    sed -i "/^bindPort =.*/a\# udp port used for quic protocol, it can be same with 'bindPort'\n# if not set, kcp is disabled in frps\n#kcpBindPort = ${def_quic_bind_port}\n" ${str_program_dir}/${program_config_file}
+                else
+                    sed -i "/^bindPort =.*/a\# udp port used for quic protocol, it can be same with 'bindPort'\n# if not set, kcp is disabled in frps\nkcpBindPort = ${def_quic_bind_port}\n" ${str_program_dir}/${program_config_file}
                 fi
             fi
             if [ -z "${search_tcp_mux}" ];then
